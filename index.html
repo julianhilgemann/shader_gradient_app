@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ShaderGradient Playground</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -270,6 +270,80 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.35); }
   border: none; transition: box-shadow 0.12s, color 0.12s;
 }
 .popup-btn-skip:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3); color: #fff; }
+
+/* ═══════════════════════════════════════════════
+   MOBILE / iOS  —  bottom-sheet layout
+   Breakpoint: ≤ 768 px
+   ═══════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Navbar spans full width, respect safe area */
+  .pill-navbar {
+    left: 12px;
+    right: 12px;
+    top: max(12px, env(safe-area-inset-top));
+  }
+
+  /* Panel becomes a bottom sheet */
+  #panel {
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    /* ~40 % of viewport — roughly "bottom third" on most phones */
+    height: 42vh;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px 18px 0 0;
+    /* Frosted-glass feel on the sheet itself */
+    background: rgba(8,8,18,0.92);
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+  }
+
+  /* Drag pill handle */
+  #panel::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 2px;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+
+  /* Tighten tab bar */
+  .tabs {
+    padding: 8px 12px 0;
+    padding-bottom: 8px;
+    gap: 3px;
+  }
+
+  /* Tighter body padding */
+  .panel-body {
+    padding: 10px 14px 6px;
+  }
+
+  /* Tighter controls */
+  .ctrl { margin-bottom: 9px; }
+  .section { margin-bottom: 14px; }
+
+  /* Info bar hidden — saves precious space */
+  .info-bar { display: none; }
+
+  /* Footer: always visible, respects iPhone home bar */
+  .panel-footer {
+    padding: 10px 16px max(14px, env(safe-area-inset-bottom));
+    gap: 4px;
+    font-size: 10px;
+  }
+  .panel-footer a { font-size: 10px; }
+
+  /* Popup respects safe area */
+  .popup-overlay { padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+}
 </style>
 </head>
 <body>
@@ -580,6 +654,9 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.35); }
 </div>
 
 <script>
+// ── MOBILE DETECTION ──────────────────────────────────────────────────────
+function isMobile(){ return window.innerWidth <= 768; }
+
 // ── STATE ──────────────────────────────────────────────────────────────────
 const S = {
   color1: '#ffffff', color2: '#ffbb00', color3: '#0700ff',
@@ -708,7 +785,11 @@ function animate(ts){
   requestAnimationFrame(animate);
   const dt=Math.min((ts-lastTime)/1000,0.1);lastTime=ts;
   frameCount++;
-  if(ts-lastFPS>1000){document.getElementById('fps-counter').textContent=frameCount+' fps';frameCount=0;lastFPS=ts;}
+  if(ts-lastFPS>1000){
+    const fc=document.getElementById('fps-counter');
+    if(fc)fc.textContent=frameCount+' fps';
+    frameCount=0;lastFPS=ts;
+  }
   if(S.animate){
     uniforms.uTime.value+=dt;
     document.getElementById('v-uTime').textContent=uniforms.uTime.value.toFixed(2);
@@ -722,6 +803,8 @@ requestAnimationFrame(animate);
 window.addEventListener('resize',()=>{
   const w=container.clientWidth,h=container.clientHeight;
   camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);
+  // Re-apply glass so overlay dimensions stay correct after orientation change
+  applyGlass();
 });
 
 // ── GRAIN ──
@@ -751,9 +834,16 @@ function applyGlass(){
   const bf=`blur(${S.gBlur}px) saturate(${S.gSat})`;
   const bg=`rgba(${r},${g},${b},${S.gOpacity/100})`;
   const bd=`1px solid rgba(${r},${g},${b},${S.gBorder/100})`;
-  if(!S.glassOn){overlay.style.display='none';}
-  else{
-    overlay.style.cssText=`position:fixed;top:0;left:0;right:300px;bottom:0;z-index:3;pointer-events:none;display:block;backdrop-filter:${bf};-webkit-backdrop-filter:${bf};background:${bg};border-right:${bd};`;
+
+  if(!S.glassOn){
+    overlay.style.display='none';
+  } else {
+    // On mobile the panel is at the bottom; on desktop it's on the right
+    if(isMobile()){
+      overlay.style.cssText=`position:fixed;top:0;left:0;right:0;bottom:42vh;z-index:3;pointer-events:none;display:block;backdrop-filter:${bf};-webkit-backdrop-filter:${bf};background:${bg};border-bottom:${bd};`;
+    } else {
+      overlay.style.cssText=`position:fixed;top:0;left:0;right:300px;bottom:0;z-index:3;pointer-events:none;display:block;backdrop-filter:${bf};-webkit-backdrop-filter:${bf};background:${bg};border-right:${bd};`;
+    }
   }
   preview.style.backdropFilter=`blur(${Math.min(S.gBlur,24)}px) saturate(${S.gSat})`;
   preview.style.webkitBackdropFilter=`blur(${Math.min(S.gBlur,24)}px) saturate(${S.gSat})`;
@@ -816,7 +906,6 @@ async function exportGIF(){
     if(label)document.getElementById('gif-progress-label').textContent=label;
   };
   try{
-    // Load omggif (GIF byte-stream builder, no workers)
     if(!window.GifWriter){
       await new Promise((res,rej)=>{
         const s=document.createElement('script');
@@ -828,9 +917,8 @@ async function exportGIF(){
     const[w,h]=getExportDims(S.gifRes);
     const fps=parseInt(S.gifFps)||10;
     const totalFrames=Math.round(fps*S.loopDuration);
-    const delayCs=Math.round(100/fps); // centiseconds
+    const delayCs=Math.round(100/fps);
 
-    // Offscreen renderer
     const expR=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
     expR.setPixelRatio(1); expR.setSize(w,h);
     expR.setClearColor(new THREE.Color(S.bgColor));
@@ -839,21 +927,19 @@ async function exportGIF(){
     document.body.appendChild(expR.domElement);
     const expCam=makeExportCamera(w,h);
 
-    // Read canvas via 2D context (avoids cross-origin taint on WebGL)
     const rc=document.createElement('canvas'); rc.width=w; rc.height=h;
     const rctx=rc.getContext('2d');
 
     const savedTime=uniforms.uTime.value, savedAnim=S.animate;
     S.animate=false;
 
-    // Render all frames
     const frames=[];
     for(let i=0;i<totalFrames;i++){
       uniforms.uTime.value=(i/totalFrames)*S.loopDuration;
       expR.render(scene,expCam);
       rctx.drawImage(expR.domElement,0,0);
       const id=rctx.getImageData(0,0,w,h);
-      frames.push(id.data); // Uint8ClampedArray RGBA
+      frames.push(id.data);
       setProg(i/(totalFrames+totalFrames*0.5), `Frame ${i+1}/${totalFrames}`);
       if(i%3===0) await new Promise(r=>setTimeout(r,0));
     }
@@ -864,9 +950,7 @@ async function exportGIF(){
     setStatus('Quantising…'); btn.textContent='Quantising…';
     await new Promise(r=>setTimeout(r,0));
 
-    // Build a shared 256-colour palette from first + middle + last frame samples
     function buildPalette(rgbaFrames){
-      // Simple popularity / frequency palette: bucket RGB into 5-bit grid
       const counts=new Map();
       const step=Math.max(1,Math.floor(rgbaFrames.length/4));
       for(let fi=0;fi<rgbaFrames.length;fi+=step){
@@ -876,9 +960,8 @@ async function exportGIF(){
           counts.set(key,(counts.get(key)||0)+1);
         }
       }
-      // Sort by frequency, take top 255, add one black
       const sorted=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,255);
-      const palette=[[0,0,0]]; // index 0 = black fallback
+      const palette=[[0,0,0]];
       for(const[key]of sorted){
         palette.push([((key>>10)&31)<<3,((key>>5)&31)<<3,(key&31)<<3]);
       }
@@ -897,11 +980,9 @@ async function exportGIF(){
     }
 
     const palette=buildPalette(frames);
-    // Flat palette array for omggif (R,G,B,R,G,B,...)
     const palFlat=new Uint8Array(256*3);
     for(let i=0;i<256;i++){palFlat[i*3]=palette[i][0];palFlat[i*3+1]=palette[i][1];palFlat[i*3+2]=palette[i][2];}
 
-    // Build palette lookup cache
     const cache=new Map();
     function cachedNearest(r,g,b){
       const k=((r>>2)<<12)|((g>>2)<<6)|(b>>2);
@@ -909,7 +990,6 @@ async function exportGIF(){
       const v=nearestIdx(palette,r,g,b); cache.set(k,v); return v;
     }
 
-    // Encode GIF with omggif
     const bufSize=w*h*totalFrames*2+1024*1024;
     const buf=new Uint8Array(bufSize);
     const gw=new GifWriter(buf,w,h,{loop:0,palette:palFlat});
@@ -942,7 +1022,7 @@ async function exportGIF(){
   }
 }
 
-// ── VIDEO EXPORT ────────────────────────────────────────────────────────────
+// ── VIDEO EXPORT ──
 let vidExporting=false;
 async function exportVideo(){
   if(vidExporting)return; vidExporting=true;
@@ -962,11 +1042,9 @@ async function exportVideo(){
     const savedTime=uniforms.uTime.value, savedAnim=S.animate;
 
     if(fmt==='mp4'){
-      // WebCodecs MP4 path (Chrome 94+)
       if(typeof VideoEncoder==='undefined') throw new Error('MP4 needs Chrome 94+ (VideoEncoder API)');
 
       setStatus('Loading muxer…');
-      // Load mp4-muxer via dynamic import
       const mod=await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5/+esm');
       const{Muxer,ArrayBufferTarget}=mod;
 
@@ -1015,18 +1093,14 @@ async function exportVideo(){
       btn.textContent='↓ Export Video Loop'; btn.disabled=false; vidExporting=false;
 
     } else {
-      // WebM via MediaRecorder
-      // Canvas must be visible (not off-screen) for captureStream to work
       const expR=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
       expR.setPixelRatio(1); expR.setSize(w,h);
       expR.setClearColor(new THREE.Color(S.bgColor));
       expR.toneMapping=THREE.ACESFilmicToneMapping; expR.toneMappingExposure=1.0;
-      // 1×1 visible pixel — enough for captureStream, invisible to user
       expR.domElement.style.cssText='position:fixed;right:304px;bottom:0;width:1px;height:1px;pointer-events:none;opacity:0.01;z-index:5;';
       document.body.appendChild(expR.domElement);
       const expCam=makeExportCamera(w,h);
 
-      // Render one frame first so the stream has content before recording starts
       S.animate=false; uniforms.uTime.value=0;
       expR.render(scene,expCam);
       await new Promise(r=>setTimeout(r,150));
@@ -1055,7 +1129,7 @@ async function exportVideo(){
         btn.textContent='↓ Export Video Loop'; btn.disabled=false; vidExporting=false;
       };
 
-      recorder.start(200); // flush chunks every 200ms
+      recorder.start(200);
       btn.textContent='Recording…'; setStatus('Recording…');
 
       let frame=0;
@@ -1078,6 +1152,7 @@ async function exportVideo(){
     console.error(err);
   }
 }
+
 // ── CODE OUTPUT ──
 function updateCode(){
   document.getElementById('code-out').textContent=[
@@ -1130,7 +1205,6 @@ document.querySelectorAll('.tab').forEach(t=>{
   });
 });
 
-// Gradient colors
 [1,2,3].forEach(i=>{
   const inp=document.getElementById(`color${i}`);
   const sw=document.getElementById(`cs${i}`);
@@ -1138,7 +1212,6 @@ document.querySelectorAll('.tab').forEach(t=>{
   document.getElementById(`cw${i}`).addEventListener('click',()=>inp.click());
 });
 
-// BG color
 document.getElementById('cw-bg').addEventListener('click',()=>document.getElementById('color-bg').click());
 document.getElementById('color-bg').addEventListener('input',e=>{
   S.bgColor=e.target.value;
@@ -1156,11 +1229,9 @@ document.querySelectorAll('.bg-preset').forEach(p=>{
   });
 });
 
-// Glass tint color
 document.getElementById('cw-glass').addEventListener('click',()=>document.getElementById('color-glass').click());
 document.getElementById('color-glass').addEventListener('input',e=>{S.gTint=e.target.value;document.getElementById('cs-glass').style.background=e.target.value;applyGlass();});
 
-// Glass presets
 document.querySelectorAll('#glass-presets .opt-btn').forEach(btn=>{
   btn.addEventListener('click',function(){
     document.querySelectorAll('#glass-presets .opt-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');
@@ -1168,7 +1239,6 @@ document.querySelectorAll('#glass-presets .opt-btn').forEach(btn=>{
   });
 });
 
-// Slider helper
 function slider(id,key,fmt,cb){
   document.getElementById(id).addEventListener('input',e=>{
     const v=parseFloat(e.target.value);S[key]=v;
@@ -1255,7 +1325,6 @@ document.getElementById('popup-btn-skip').addEventListener('click', () => {
   if (_pendingExport) { _pendingExport(); _pendingExport = null; }
 });
 
-// Close on overlay click
 document.getElementById('coffee-popup').addEventListener('click', function(e) {
   if (e.target === this) {
     this.style.display = 'none';
@@ -1285,18 +1354,15 @@ document.getElementById('btn-cam-reset').addEventListener('click', resetCamera);
 // ── APPLY FULL STATE (used by preset load) ──
 function applyFullState(st) {
   Object.assign(S, st);
-  // Colors
   [1,2,3].forEach(i => {
     const c = S[`color${i}`];
     document.getElementById(`color${i}`).value = c;
     document.getElementById(`cs${i}`).style.background = c;
     uniforms[`uColor${i}`].value.set(c);
   });
-  // BG
   document.getElementById('color-bg').value = S.bgColor;
   document.getElementById('cs-bg').style.background = S.bgColor;
   renderer.setClearColor(new THREE.Color(S.bgColor));
-  // Sliders
   const sliderMap = [
     ['brightness','v-brightness',v=>v.toFixed(2)], ['reflection','v-reflection',v=>v.toFixed(2)],
     ['uAmplitude','v-uAmplitude',v=>v.toFixed(2)], ['uDensity','v-uDensity',v=>v.toFixed(2)],
@@ -1314,13 +1380,11 @@ function applyFullState(st) {
     const el = document.getElementById(id); if (!el) return;
     el.value = S[id]; document.getElementById(vid).textContent = fmt(S[id]);
   });
-  // Uniforms
   uniforms.uBrightness.value = S.brightness; uniforms.uReflection.value = S.reflection;
   uniforms.uAmplitude.value = S.uAmplitude; uniforms.uDensity.value = S.uDensity;
   uniforms.uFrequency.value = S.uFrequency; uniforms.uStrength.value = S.uStrength;
   uniforms.uSpeed.value = S.uSpeed;
   renderer.setPixelRatio(S.pixelDensity);
-  // Opt buttons
   ['lightType','envPreset','type'].forEach(group => {
     document.querySelectorAll(`#${group} .opt-btn`).forEach(b => b.classList.toggle('active', b.dataset.val === S[group]));
   });
@@ -1328,14 +1392,12 @@ function applyFullState(st) {
   uniforms.uEnvColor.value.copy(envColors[S.envPreset] || envColors.city);
   if (mesh && S.type !== (mesh.geometry.type === 'SphereGeometry' ? 'sphere' : S.type)) buildMesh();
   else buildMesh();
-  // Toggles
   ['wireframe','grain','axes','animate','glassOn'].forEach(key => {
     const id = key === 'glassOn' ? 'toggle-glass' : `toggle-${key}`;
     const el = document.getElementById(id); if (el) el.classList.toggle('on', S[key]);
   });
   material.wireframe = S.wireframe;
   axesHelper.visible = S.axes;
-  // Glass tint
   document.getElementById('color-glass').value = S.gTint;
   document.getElementById('cs-glass').style.background = S.gTint;
   updateCamera(); applyGlass();
@@ -1346,27 +1408,22 @@ const STORAGE_KEY = 'shadergradient_presets_v1';
 const BUILTIN_PRESETS = [
   {
     name: 'Silk Smoke',
-    // Very slow, ultra-low amplitude plane — silky smooth, almost still. Good for minimal hero backgrounds.
     state: { color1:'#e8e0d8', color2:'#b0a898', color3:'#6c6460', bgColor:'#f0ece6', brightness:1.0, reflection:0.04, lightType:'env', envPreset:'city', type:'plane', uAmplitude:0.25, uDensity:0.6, uFrequency:2.2, uStrength:0.5, rotationX:-12, rotationY:0, rotationZ:0, cDistance:9, cAzimuthAngle:0, cPolarAngle:85, cameraZoom:14, fov:50, uSpeed:0.03, loopDuration:20, pixelDensity:1, wireframe:false, grain:false, axes:false, animate:true, glassOn:false, gBlur:16, gSat:1.2, gTint:'#ffffff', gOpacity:12, gBorder:15 }
   },
   {
     name: 'Deep Indigo Pulse',
-    // Sphere, dark background, slow medium-amplitude pulse — moody, almost breathing
     state: { color1:'#4400cc', color2:'#1100aa', color3:'#000033', bgColor:'#050008', brightness:1.3, reflection:0.25, lightType:'3d', envPreset:'night', type:'sphere', uAmplitude:0.8, uDensity:1.8, uFrequency:3.0, uStrength:0.9, rotationX:0, rotationY:0, rotationZ:0, cDistance:6.5, cAzimuthAngle:0, cPolarAngle:135, cameraZoom:18, fov:42, uSpeed:0.05, loopDuration:14, pixelDensity:1, wireframe:false, grain:false, axes:false, animate:true, glassOn:false, gBlur:16, gSat:1.2, gTint:'#ffffff', gOpacity:12, gBorder:15 }
   },
   {
     name: 'Golden Hour Ripple',
-    // waterPlane, warm palette, viewed from directly above — looks like liquid gold
     state: { color1:'#ffcc44', color2:'#ff6600', color3:'#cc2200', bgColor:'#1a0800', brightness:1.15, reflection:0.35, lightType:'3d', envPreset:'dawn', type:'waterPlane', uAmplitude:0.4, uDensity:1.0, uFrequency:7.0, uStrength:0.7, rotationX:-90, rotationY:0, rotationZ:0, cDistance:10, cAzimuthAngle:0, cPolarAngle:10, cameraZoom:10, fov:55, uSpeed:0.07, loopDuration:12, pixelDensity:1, wireframe:false, grain:false, axes:false, animate:true, glassOn:false, gBlur:16, gSat:1.2, gTint:'#ffffff', gOpacity:12, gBorder:15 }
   },
   {
     name: 'Arctic Glass',
-    // Pale sphere, high zoom/close crop, near-white palette, frost overlay on
     state: { color1:'#ddeeff', color2:'#88bbee', color3:'#335577', bgColor:'#0a1520', brightness:1.05, reflection:0.4, lightType:'env', envPreset:'city', type:'sphere', uAmplitude:0.55, uDensity:0.9, uFrequency:4.5, uStrength:0.6, rotationX:0, rotationY:0, rotationZ:0, cDistance:4.5, cAzimuthAngle:0, cPolarAngle:110, cameraZoom:28, fov:35, uSpeed:0.04, loopDuration:16, pixelDensity:1, wireframe:false, grain:false, axes:false, animate:true, glassOn:true, gBlur:22, gSat:1.3, gTint:'#cce8ff', gOpacity:10, gBorder:18 }
   },
   {
     name: 'Velvet Underground',
-    // Very dense, high-frequency, dark crimson — almost like crushed velvet texture
     state: { color1:'#880033', color2:'#330011', color3:'#220022', bgColor:'#060002', brightness:0.85, reflection:0.08, lightType:'3d', envPreset:'night', type:'sphere', uAmplitude:0.35, uDensity:3.5, uFrequency:14.0, uStrength:0.8, rotationX:20, rotationY:0, rotationZ:0, cDistance:5.5, cAzimuthAngle:0, cPolarAngle:125, cameraZoom:22, fov:38, uSpeed:0.025, loopDuration:18, pixelDensity:1, wireframe:false, grain:true, axes:false, animate:true, glassOn:false, gBlur:16, gSat:1.2, gTint:'#ffffff', gOpacity:12, gBorder:15 }
   },
 ];
@@ -1408,7 +1465,6 @@ function renderPresetItem(p, isBuiltin, container, idx) {
   `;
   el.querySelector('.preset-item-name').addEventListener('click', () => {
     applyFullState(JSON.parse(JSON.stringify(st)));
-    // Flash
     el.style.borderColor = 'rgba(100,220,150,0.5)';
     setTimeout(() => el.style.borderColor = '', 800);
   });
@@ -1456,11 +1512,9 @@ document.getElementById('preset-name-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-save-preset').click();
 });
 
-// Init presets
 renderAllPresets();
-
-// Init estimates
-updateGifSizeEst();updateVidSizeEst();
+updateGifSizeEst();
+updateVidSizeEst();
 </script>
 </body>
 </html>
